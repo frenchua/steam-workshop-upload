@@ -81,10 +81,19 @@ second line' \
 echo "== success path"
 run_case "successful upload" ok 0
 w=$LAST_WORK
-if grep -q '"changenote" "Fix the \\"online\\" bug\\nsecond line"' "$w/temp/workshop-manifest.vdf"; then
-  pass=$((pass + 1)); printf 'ok   %s\n' "manifest escapes the changenote"
+if grep -qF "\"changenote\" \"Fix the 'online' bug second line\"" "$w/temp/workshop-manifest.vdf"; then
+  pass=$((pass + 1)); printf 'ok   %s\n' "manifest sanitizes the changenote"
 else
   fail=$((fail + 1)); printf 'FAIL %s\n' "manifest changenote is wrong:"; cat "$w/temp/workshop-manifest.vdf"
+fi
+# One stray quote is enough to end the string early and fail the parse, so the
+# changenote line must carry exactly four: two delimiting the key, two the value.
+quotes=$(awk '/changenote/ { print gsub(/"/, "") }' "$w/temp/workshop-manifest.vdf")
+if [ "$quotes" = 4 ]; then
+  pass=$((pass + 1)); printf 'ok   %s\n' "changenote line has exactly four quotes"
+else
+  fail=$((fail + 1)); printf 'FAIL %s: found %s quotes\n' "changenote line has stray quotes" "$quotes"
+  cat "$w/temp/workshop-manifest.vdf"
 fi
 if grep -q "manifest=" "$w/gh-output"; then
   pass=$((pass + 1)); printf 'ok   %s\n' "manifest output is written"

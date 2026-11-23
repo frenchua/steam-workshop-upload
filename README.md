@@ -26,7 +26,7 @@ inside a container. That is the whole point of this action — see
 | `appId` | yes | Steam AppID the item belongs to (`294100` for RimWorld). |
 | `publishedFileId` | yes | Numeric id of the existing Workshop item to update. |
 | `path` | yes | Folder whose contents become the item. Relative paths resolve against the workspace. |
-| `changeNote` | no | Changenote for the update. Multi-line text is escaped for you, and shortened if needed (see below). |
+| `changeNote` | no | Changenote for the update. Rewritten to a single safe line (see below). |
 
 ### Outputs
 
@@ -35,14 +35,23 @@ inside a container. That is the whole point of this action — see
 | `manifest` | Path to the generated `manifest.vdf`, useful for debugging. |
 
 
-### Changenote length
+### Changenote handling
 
-SteamCMD's KeyValues parser aborts on an over-long string, logging
-`AddStringToPool: key name too long` and then `Error while parsing text KeyValues for
-resource workshopitem`. A full multi-paragraph commit message passed as `changeNote` is
-enough to trigger it, so the changenote is shortened to about 1000 characters, marked
-`[truncated]`, and a warning is written to the job log. Override the budget with the
-`CHANGENOTE_MAX_CHARS` environment variable if you need to.
+SteamCMD's KeyValues parser does not honour escape sequences when it reads a workshopitem
+manifest. A backslash-escaped quote does not produce a quote: it ends the string early and
+the upload dies with `Error while parsing text KeyValues for resource workshopitem`. The
+parser also aborts on an over-long string with `AddStringToPool: key name too long`.
+
+Changenotes are therefore rewritten to suit it:
+
+- double quotes become apostrophes, since a quote cannot be represented at all;
+- newlines, carriage returns and tabs collapse into single spaces, because a VDF string
+  cannot span lines;
+- trailing backslashes are dropped, so they cannot escape the closing quote;
+- the result is capped at about 1000 characters, marked `[truncated]`, with a warning in the
+  job log. Override the budget with `CHANGENOTE_MAX_CHARS`.
+
+A commit message is therefore published as a single tidy line.
 
 ## Requirements
 
@@ -102,8 +111,8 @@ These are SteamCMD's, not this action's:
 
 - Inputs reach the scripts as environment variables rather than being interpolated into a
   `run:` body, so a changenote containing shell metacharacters cannot be executed.
-- Changenotes are escaped for VDF: backslashes are doubled, quotes escaped, newlines folded
-  into `\n`. A changenote cannot close the string and inject manifest keys.
+- Changenotes are rewritten so SteamCMD can parse them, and cannot close the string or
+  inject manifest keys. See [Changenote handling](#changenote-handling).
 - Success requires both a zero exit code **and** a success line in SteamCMD's output, because
   SteamCMD's exit code alone is not reliable and a silent no-op would otherwise look like a
   published update.

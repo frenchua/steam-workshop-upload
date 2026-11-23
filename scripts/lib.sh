@@ -7,48 +7,66 @@ die() {
   exit 1
 }
 
-# Escape a string for use inside a double-quoted VDF value.
+# Make text safe to place inside a double-quoted VDF string.
 #
-# VDF strings cannot span lines and are delimited by double quotes, so
-# backslashes and quotes are escaped and newlines folded into literal \n.
-# The replacements are taken from variables on purpose: bash strips
-# backslashes out of a literal ${var//pattern/replacement} replacement, which
-# silently turns \n into a bare "n".
-vdf_escape() {
-  # SC1003: a lone backslash is exactly what is wanted here.
-  # shellcheck disable=SC1003
-  local s=$1 bs='\'
-  s=${s//"$bs"/"$bs$bs"}
-  s=${s//'"'/"$bs\""}
-  s=${s//$'\r'/}
-  s=${s//$'\n'/"${bs}n"}
+# SteamCMD's KeyValues parser does not honour escape sequences when reading a
+# workshopitem manifest. A \" does not produce a quote: it ends the string
+# early, and the upload dies with
+#
+#   ../tier1/KeyValues.cpp (3202) : Assertion Failed:
+#   Error while parsing text KeyValues for resource workshopitem
+#
+# This was seen on a real publish whose changenote quoted a mod name. A double
+# quote therefore cannot be represented at all, so it becomes an apostrophe.
+# A VDF string also cannot span lines, so newlines and tabs collapse into
+# single spaces. Trailing backslashes are dropped so they cannot escape the
+# closing quote in a parser that does honour escapes.
+vdf_sanitize() {
+  local s=$1 apostrophe="'" space=' '
+  s=${s//'"'/"$apostrophe"}
+  s=${s//$'\r'/"$space"}
+  s=${s//$'\n'/"$space"}
+  s=${s//$'\t'/"$space"}
+
+  # Collapse runs of spaces left behind by the folding above.
+  while [ "${s#*  }" != "$s" ]; do
+    s=${s//  /"$space"}
+  done
+
+  # Trim leading and trailing whitespace.
+  s=${s#"${s%%[![:space:]]*}"}
+  s=${s%"${s##*[![:space:]]}"}
+
+  # Drop any trailing backslashes.
+  while [ -n "$s" ] && [ "${s: -1}" = '\' ]; do
+    s=${s%?}
+  done
+
   printf '%s' "$s"
 }
 
-# Shorten text until its escaped form fits within a character budget.
+# Shorten text until its sanitized form fits a character budget.
 #
-# SteamCMD's KeyValues parser aborts on an over-long string with
-# "AddStringToPool: key name too long" followed by "Error while parsing text
-# KeyValues for resource workshopitem", which is what a full multi-paragraph
-# commit message produces once newlines are folded into \n.
+# SteamCMD's KeyValues parser also aborts on an over-long string, with
+# "AddStringToPool: key name too long" followed by the same parse failure as
+# above. A full multi-paragraph commit message is enough to trigger it.
 #
-# Usage: vdf_fit <max_escaped_chars> <text>
+# Usage: vdf_fit <max_chars> <text>
 vdf_fit() {
-  local max=$1 text=$2 esc n
+  local max=$1 text=$2 clean n
   [ -n "$text" ] || { printf ''; return; }
 
-  esc=$(vdf_escape "$text")
-  if [ "${#esc}" -le "$max" ]; then
-    printf '%s' "$text"
+  clean=$(vdf_sanitize "$text")
+  if [ "${#clean}" -le "$max" ]; then
+    printf '%s' "$clean"
     return
   fi
 
-  # Escaping can grow a string, so start well inside the budget and shrink.
-  n=$(( max / 2 ))
+  n=$max
   while [ "$n" -gt 0 ]; do
-    esc=$(vdf_escape "${text:0:n} [truncated]")
-    if [ "${#esc}" -le "$max" ]; then
-      printf '%s' "${text:0:n} [truncated]"
+    clean=$(vdf_sanitize "${text:0:n} [truncated]")
+    if [ "${#clean}" -le "$max" ]; then
+      printf '%s' "$clean"
       return
     fi
     n=$(( n - 64 ))
@@ -60,7 +78,7 @@ vdf_fit() {
 # Usage: vdf_manifest <appid> <publishedfileid> <contentfolder> <changenote>
 vdf_manifest() {
   printf '"workshopitem"\n{\n\t"appid" "%s"\n\t"publishedfileid" "%s"\n\t"contentfolder" "%s"\n\t"changenote" "%s"\n}\n' \
-    "$1" "$2" "$3" "$(vdf_escape "$4")"
+    "$1" "$2" "$3" "$(vdf_sanitize "$4")"
 }
 
 # Require a value to be a non-empty string of digits.
