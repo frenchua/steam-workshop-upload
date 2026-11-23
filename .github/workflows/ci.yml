@@ -10,7 +10,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: ShellCheck
         run: shellcheck -x scripts/*.sh tests/*.sh
@@ -39,7 +39,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Unit tests
         run: bash tests/test-lib.sh
@@ -58,7 +58,7 @@ jobs:
         runner: [ubuntu-latest, ubuntu-24.04]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Report runner
         run: |
