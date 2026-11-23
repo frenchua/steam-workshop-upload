@@ -77,5 +77,39 @@ else
   pass=$((pass + 1)); printf 'ok   %s\n' "require_numeric rejects empty"
 fi
 
+# vdf_fit guards against the real failure seen in CI: a full commit message
+# folded onto one line made SteamCMD abort with "AddStringToPool: key name too
+# long (1425 chars)" and then fail to parse the manifest.
+short='a short note'
+check "vdf_fit leaves a short note alone" \
+  "$short" "$(vdf_fit 1000 "$short")"
+
+check "vdf_fit leaves an empty note empty" \
+  '' "$(vdf_fit 1000 '')"
+
+long=$(printf 'word %.0s' $(seq 1 400))   # ~2000 characters
+fitted=$(vdf_fit 1000 "$long")
+escaped_len=${#fitted}
+if [ "$escaped_len" -le 1000 ] && [ "$escaped_len" -gt 0 ]; then
+  pass=$((pass + 1)); printf 'ok   %s (%d chars)\n' "vdf_fit shortens a long note" "$escaped_len"
+else
+  fail=$((fail + 1)); printf 'FAIL %s: got %d chars\n' "vdf_fit shortens a long note" "$escaped_len"
+fi
+
+case "$fitted" in
+  *'[truncated]') pass=$((pass + 1)); printf 'ok   %s\n' "vdf_fit marks truncation" ;;
+  *)              fail=$((fail + 1)); printf 'FAIL %s\n' "vdf_fit did not mark truncation" ;;
+esac
+
+# A note made entirely of characters that double when escaped is the worst case
+# for the budget, since escaping grows it rather than shrinking it.
+nasty=$(printf '"%.0s' $(seq 1 1200))
+nasty_escaped=$(vdf_escape "$(vdf_fit 1000 "$nasty")")
+if [ "${#nasty_escaped}" -le 1000 ]; then
+  pass=$((pass + 1)); printf 'ok   %s (%d escaped chars)\n' "vdf_fit respects the budget after escaping" "${#nasty_escaped}"
+else
+  fail=$((fail + 1)); printf 'FAIL %s: escaped to %d chars, over budget\n' "vdf_fit respects the budget after escaping" "${#nasty_escaped}"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

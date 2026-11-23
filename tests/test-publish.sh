@@ -102,6 +102,23 @@ echo "== failure paths"
 run_case "expired login is caught" badlogin 1
 run_case "failed upload is caught" badupload 1
 
+echo "== long changenote"
+# Reproduces a real CI failure: a full commit message folded onto one VDF line
+# made SteamCMD abort with "AddStringToPool: key name too long (1425 chars)".
+long_note=$(printf 'line %s of a very long commit message\n' $(seq 1 60))
+run_case "a long changenote still publishes" ok 0 "INPUT_CHANGENOTE=$long_note"
+note_line=$(grep '"changenote"' "$LAST_WORK/temp/workshop-manifest.vdf")
+if [ "${#note_line}" -le 1100 ]; then
+  pass=$((pass + 1)); printf 'ok   %s (%d chars)\n' "long changenote is shortened in the manifest" "${#note_line}"
+else
+  fail=$((fail + 1)); printf 'FAIL %s: changenote line is %d chars\n' "long changenote not shortened" "${#note_line}"
+fi
+if grep -q "::warning::changenote was" "$LAST_WORK/out.log"; then
+  pass=$((pass + 1)); printf 'ok   %s\n' "truncation is announced"
+else
+  fail=$((fail + 1)); printf 'FAIL %s\n' "truncation was not announced"
+fi
+
 echo "== input validation"
 run_case "non-numeric appId is rejected" ok 1 INPUT_APPID=29x4
 run_case "empty publishedFileId is rejected" ok 1 INPUT_PUBLISHEDFILEID=

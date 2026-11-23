@@ -16,6 +16,16 @@ set -euo pipefail
 : "${INPUT_PATH:?path input is required}"
 change_note=${INPUT_CHANGENOTE:-}
 
+# Keep the changenote short enough for SteamCMD's KeyValues parser, which
+# aborts on an over-long string. A full commit message easily exceeds it.
+changenote_max=${CHANGENOTE_MAX_CHARS:-1000}
+fitted_note=$(vdf_fit "$changenote_max" "$change_note")
+if [ "$fitted_note" != "$change_note" ]; then
+  printf '::warning::changenote was %d characters and has been shortened to fit SteamCMD'"'"'s limit of about %d\n' \
+    "${#change_note}" "$changenote_max"
+fi
+change_note=$fitted_note
+
 test -n "${INPUT_CONFIGVDF:-}" \
   || die "configVdf is empty - set it from a repository secret containing your SteamCMD config.vdf"
 

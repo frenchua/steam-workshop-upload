@@ -26,13 +26,23 @@ inside a container. That is the whole point of this action — see
 | `appId` | yes | Steam AppID the item belongs to (`294100` for RimWorld). |
 | `publishedFileId` | yes | Numeric id of the existing Workshop item to update. |
 | `path` | yes | Folder whose contents become the item. Relative paths resolve against the workspace. |
-| `changeNote` | no | Changenote for the update. Multi-line text is escaped for you. |
+| `changeNote` | no | Changenote for the update. Multi-line text is escaped for you, and shortened if needed (see below). |
 
 ### Outputs
 
 | Output | Description |
 | --- | --- |
 | `manifest` | Path to the generated `manifest.vdf`, useful for debugging. |
+
+
+### Changenote length
+
+SteamCMD's KeyValues parser aborts on an over-long string, logging
+`AddStringToPool: key name too long` and then `Error while parsing text KeyValues for
+resource workshopitem`. A full multi-paragraph commit message passed as `changeNote` is
+enough to trigger it, so the changenote is shortened to about 1000 characters, marked
+`[truncated]`, and a warning is written to the job log. Override the budget with the
+`CHANGENOTE_MAX_CHARS` environment variable if you need to.
 
 ## Requirements
 

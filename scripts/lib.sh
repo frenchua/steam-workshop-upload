@@ -25,6 +25,37 @@ vdf_escape() {
   printf '%s' "$s"
 }
 
+# Shorten text until its escaped form fits within a character budget.
+#
+# SteamCMD's KeyValues parser aborts on an over-long string with
+# "AddStringToPool: key name too long" followed by "Error while parsing text
+# KeyValues for resource workshopitem", which is what a full multi-paragraph
+# commit message produces once newlines are folded into \n.
+#
+# Usage: vdf_fit <max_escaped_chars> <text>
+vdf_fit() {
+  local max=$1 text=$2 esc n
+  [ -n "$text" ] || { printf ''; return; }
+
+  esc=$(vdf_escape "$text")
+  if [ "${#esc}" -le "$max" ]; then
+    printf '%s' "$text"
+    return
+  fi
+
+  # Escaping can grow a string, so start well inside the budget and shrink.
+  n=$(( max / 2 ))
+  while [ "$n" -gt 0 ]; do
+    esc=$(vdf_escape "${text:0:n} [truncated]")
+    if [ "${#esc}" -le "$max" ]; then
+      printf '%s' "${text:0:n} [truncated]"
+      return
+    fi
+    n=$(( n - 64 ))
+  done
+  printf '[changenote omitted: too long]'
+}
+
 # Write a workshopitem manifest.
 # Usage: vdf_manifest <appid> <publishedfileid> <contentfolder> <changenote>
 vdf_manifest() {
