@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck -x scripts/*.sh tests/*.sh
+
+      - name: Validate action.yml
+        run: |
+          python3 - <<'PY'
+          try:
+              import yaml
+          except ImportError:
+              print("pyyaml not available; skipping schema check")
+              raise SystemExit(0)
+
+          with open("action.yml", encoding="utf-8") as fh:
+              action = yaml.safe_load(fh)
+
+          assert action["runs"]["using"] == "composite", "must stay a composite action"
+          required = {"username", "configVdf", "appId", "publishedFileId", "path"}
+          missing = required - set(action["inputs"])
+          assert not missing, f"missing inputs: {missing}"
+          for name, spec in action["inputs"].items():
+              assert spec.get("description"), f"input {name} has no description"
+          print(f"action.yml OK: {len(action['inputs'])} inputs, {len(action['runs']['steps'])} steps")
+          PY
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests
+        run: bash tests/test-lib.sh
+
+      - name: Integration tests
+        run: bash tests/test-publish.sh
+
+  # Proves SteamCMD installs and bootstraps natively on each runner image. This
+  # is the half of the action that cannot be stubbed, and it is why the action
+  # avoids containers: inside one, Docker 29.4.2's seccomp profile breaks
+  # SteamCMD's 32-bit networking entirely.
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report runner
+        run: |
+          . /etc/os-release && echo "image: $PRETTY_NAME"
+          echo "docker: $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 'n/a')"
+
+      - name: Install SteamCMD
+        run: bash scripts/install-steamcmd.sh
+
+      - name: SteamCMD runs and reports a version
+        run: |
+          set -euo pipefail
+          "$STEAMCMD" +quit | tee smoke.log
+          grep -qi "steam" smoke.log || { echo "::error::SteamCMD produced no recognizable output"; exit 1; }

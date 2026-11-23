@@ -1,0 +1,59 @@
+name: Steam Workshop Upload
+description: Update a Steam Workshop item with SteamCMD, run natively on the runner instead of in a container.
+author: frenchua
+
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  username:
+    description: Steam account name that owns the Workshop item.
+    required: true
+  configVdf:
+    description: >-
+      Contents of SteamCMD's config/config.vdf from a local login that cleared
+      Steam Guard. Always pass this from a repository secret.
+    required: true
+  appId:
+    description: Steam AppID the Workshop item belongs to (294100 for RimWorld).
+    required: true
+  publishedFileId:
+    description: Numeric id of the existing Workshop item to update.
+    required: true
+  path:
+    description: >-
+      Folder whose contents become the item. Relative paths resolve against the
+      workspace. Its contents are uploaded as-is, so stage a clean folder.
+    required: true
+  changeNote:
+    description: Changenote for this update. Multi-line text is escaped automatically.
+    required: false
+    default: ''
+
+outputs:
+  manifest:
+    description: Path to the generated manifest.vdf.
+    value: ${{ steps.publish.outputs.manifest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install SteamCMD
+      shell: bash
+      run: ${{ github.action_path }}/scripts/install-steamcmd.sh
+
+    # Inputs are passed as environment variables rather than interpolated into
+    # the script body, so a changenote containing shell metacharacters cannot
+    # be executed.
+    - name: Upload to Steam Workshop
+      id: publish
+      shell: bash
+      run: ${{ github.action_path }}/scripts/publish.sh
+      env:
+        INPUT_USERNAME: ${{ inputs.username }}
+        INPUT_CONFIGVDF: ${{ inputs.configVdf }}
+        INPUT_APPID: ${{ inputs.appId }}
+        INPUT_PUBLISHEDFILEID: ${{ inputs.publishedFileId }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_CHANGENOTE: ${{ inputs.changeNote }}
