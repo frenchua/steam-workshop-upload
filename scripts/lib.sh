@@ -15,6 +15,8 @@ die() {
 # backslashes out of a literal ${var//pattern/replacement} replacement, which
 # silently turns \n into a bare "n".
 vdf_escape() {
+  # SC1003: a lone backslash is exactly what is wanted here.
+  # shellcheck disable=SC1003
   local s=$1 bs='\'
   s=${s//"$bs"/"$bs$bs"}
   s=${s//'"'/"$bs\""}

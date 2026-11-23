@@ -12,6 +12,9 @@ root=$(cd "$here/.." && pwd)
 pass=0 fail=0
 
 # Write a stub steamcmd.sh that behaves as $1 ("ok", "badlogin" or "badupload").
+# SC2016: the single quotes are deliberate, these lines are the stub's source
+# and must not expand while being written.
+# shellcheck disable=SC2016
 make_stub() {
   local mode=$1 dest=$2
   mkdir -p "$(dirname "$dest")"
@@ -43,8 +46,11 @@ run_case() {
   echo "a staged file" > "$work/ws/staging/About.xml"
   make_stub "$mode" "$work/temp/steamcmd/steamcmd.sh"
 
+  # `env` runs the assignments as assignments: passing them as plain words
+  # before the command would make the first one look like the command itself.
   local out got
   out=$(
+    env \
     HOME="$work/home" \
     RUNNER_TEMP="$work/temp" \
     GITHUB_WORKSPACE="$work/ws" \
