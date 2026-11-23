@@ -38,6 +38,8 @@ vdf_sanitize() {
   s=${s%"${s##*[![:space:]]}"}
 
   # Drop any trailing backslashes.
+  # SC1003: a lone backslash is exactly what is being compared against.
+  # shellcheck disable=SC1003
   while [ -n "$s" ] && [ "${s: -1}" = '\' ]; do
     s=${s%?}
   done

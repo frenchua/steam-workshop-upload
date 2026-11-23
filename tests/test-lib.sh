@@ -50,6 +50,8 @@ check "surrounding whitespace is trimmed" \
 check "interior backslashes survive" \
   'path C:\Users\josh' "$(vdf_sanitize 'path C:\Users\josh')"
 
+# SC1003: the trailing lone backslash is the input under test.
+# shellcheck disable=SC1003
 check "a trailing backslash is dropped" \
   'ends here' "$(vdf_sanitize 'ends here\')"
 
