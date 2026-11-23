@@ -41,7 +41,7 @@ runs:
   steps:
     - name: Install SteamCMD
       shell: bash
-      run: ${{ github.action_path }}/scripts/install-steamcmd.sh
+      run: bash "${{ github.action_path }}/scripts/install-steamcmd.sh"
 
     # Inputs are passed as environment variables rather than interpolated into
     # the script body, so a changenote containing shell metacharacters cannot
@@ -49,7 +49,7 @@ runs:
     - name: Upload to Steam Workshop
       id: publish
       shell: bash
-      run: ${{ github.action_path }}/scripts/publish.sh
+      run: bash "${{ github.action_path }}/scripts/publish.sh"
       env:
         INPUT_USERNAME: ${{ inputs.username }}
         INPUT_CONFIGVDF: ${{ inputs.configVdf }}

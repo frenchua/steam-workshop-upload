@@ -12,6 +12,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+
+      - name: Scripts are executable in git
+        run: |
+          set -euo pipefail
+          bad=$(git ls-files -s scripts/ tests/ | grep -v '^100755' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::these files are not marked executable in git (chmod +x on Windows does not record it):"
+            echo "$bad"
+            exit 1
+          fi
+          echo "all scripts are mode 100755"
+
       - name: ShellCheck
         run: shellcheck -x scripts/*.sh tests/*.sh
 
@@ -35,6 +47,49 @@ jobs:
               assert spec.get("description"), f"input {name} has no description"
           print(f"action.yml OK: {len(action['inputs'])} inputs, {len(action['runs']['steps'])} steps")
           PY
+
+
+  # Runs the action the way a consumer does. This is the only job that exercises
+  # action.yml itself: calling the scripts with `bash` from a CI step, as the
+  # other jobs do, cannot catch a missing exec bit or a wrong action_path. A
+  # deliberately invalid appId makes the publish step fail during input
+  # validation, before any contact with Steam, so the check stays deterministic
+  # and needs no credentials.
+  self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Stage a folder to publish
+        run: mkdir -p item && echo "self-test content" > item/file.txt
+
+      - name: Run the action
+        id: act
+        continue-on-error: true
+        uses: ./
+        with:
+          username: self-test-account
+          configVdf: '"InstallConfigStore" { "placeholder" "1" }'
+          appId: not-a-number
+          publishedFileId: '1'
+          path: item
+          changeNote: self-test
+
+      - name: The action must reach input validation and fail there
+        run: |
+          set -euo pipefail
+          outcome='${{ steps.act.outcome }}'
+          test "$outcome" = failure \
+            || { echo "::error::expected the action to fail on a non-numeric appId, got '$outcome'"; exit 1; }
+
+          # STEAMCMD is exported by the install step, so its presence proves that
+          # step ran to completion through action.yml rather than dying on exec.
+          test -n "${STEAMCMD:-}" \
+            || { echo "::error::install step did not export STEAMCMD; action.yml never ran it"; exit 1; }
+          test -x "$STEAMCMD" \
+            || { echo "::error::$STEAMCMD is missing or not executable"; exit 1; }
+          echo "action.yml wiring OK; SteamCMD installed at $STEAMCMD"
 
   test:
     runs-on: ubuntu-latest
