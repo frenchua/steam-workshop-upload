@@ -18,13 +18,18 @@ change_note=${INPUT_CHANGENOTE:-}
 
 # Keep the changenote short enough for SteamCMD's KeyValues parser, which
 # aborts on an over-long string. A full commit message easily exceeds it.
+#
+# Only an actual length cut is worth a warning. Rewriting quotes and newlines
+# happens to nearly every commit message and is documented behaviour, so the
+# comparison is against the sanitized length rather than the raw input: the
+# latter reported "shortened" for a 113-character note that was merely tidied.
 changenote_max=${CHANGENOTE_MAX_CHARS:-1000}
-fitted_note=$(vdf_fit "$changenote_max" "$change_note")
-if [ "$fitted_note" != "$change_note" ]; then
-  printf '::warning::changenote was %d characters and has been shortened to fit SteamCMD'"'"'s limit of about %d\n' \
-    "${#change_note}" "$changenote_max"
+clean_note=$(vdf_sanitize "$change_note")
+if [ "${#clean_note}" -gt "$changenote_max" ]; then
+  printf '::warning::changenote is %d characters and has been shortened to about %d; SteamCMD cannot parse a longer one\n' \
+    "${#clean_note}" "$changenote_max"
 fi
-change_note=$fitted_note
+change_note=$(vdf_fit "$changenote_max" "$change_note")
 
 test -n "${INPUT_CONFIGVDF:-}" \
   || die "configVdf is empty - set it from a repository secret containing your SteamCMD config.vdf"

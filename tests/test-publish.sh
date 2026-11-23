@@ -95,6 +95,14 @@ else
   fail=$((fail + 1)); printf 'FAIL %s: found %s quotes\n' "changenote line has stray quotes" "$quotes"
   cat "$w/temp/workshop-manifest.vdf"
 fi
+# Rewriting quotes and newlines is routine, so it must not be reported as a
+# length cut: a 113-character note once warned that it had been "shortened".
+if grep -q "::warning::changenote" "$w/out.log"; then
+  fail=$((fail + 1)); printf 'FAIL %s\n' "a short note warned about length"
+  grep "::warning::changenote" "$w/out.log"
+else
+  pass=$((pass + 1)); printf 'ok   %s\n' "a short note triggers no length warning"
+fi
 if grep -q "manifest=" "$w/gh-output"; then
   pass=$((pass + 1)); printf 'ok   %s\n' "manifest output is written"
 else
@@ -122,7 +130,7 @@ if [ "${#note_line}" -le 1100 ]; then
 else
   fail=$((fail + 1)); printf 'FAIL %s: changenote line is %d chars\n' "long changenote not shortened" "${#note_line}"
 fi
-if grep -q "::warning::changenote was" "$LAST_WORK/out.log"; then
+if grep -q "::warning::changenote" "$LAST_WORK/out.log"; then
   pass=$((pass + 1)); printf 'ok   %s\n' "truncation is announced"
 else
   fail=$((fail + 1)); printf 'FAIL %s\n' "truncation was not announced"
